@@ -3,7 +3,7 @@
   functions = "netlify/functions"
   publish = "public"
 
-# Add this new redirect for /api/mcp
+# JSON-RPC over HTTP endpoints
 [[redirects]]
   from = "/api/mcp"
   to = "/.netlify/functions/mcp"
@@ -14,9 +14,10 @@
   to = "/.netlify/functions/mcp"
   status = 200
 
+# SSE endpoints - make sure these point to sse.js, not mcp.js
 [[redirects]]
   from = "/sse"
-  to = "/.netlify/functions/mcp"
+  to = "/.netlify/functions/sse"
   status = 200
 
 [[redirects]]
