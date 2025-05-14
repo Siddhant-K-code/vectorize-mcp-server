@@ -1,10 +1,10 @@
+<!-- public/index.html -->
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vectorize MCP Server</title>
+  <title>Gitpod MCP Server</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -13,68 +13,42 @@
       padding: 2rem;
       line-height: 1.6;
     }
-
-    h1 {
-      color: #333;
-    }
-
-    .status {
+    pre {
       background: #f5f5f5;
       padding: 1rem;
       border-radius: 4px;
-      margin: 2rem 0;
-    }
-
-    .status.online {
-      background: #e6f7e6;
-      border-left: 4px solid #28a745;
-    }
-
-    .status.offline {
-      background: #f7e6e6;
-      border-left: 4px solid #dc3545;
+      overflow: auto;
     }
   </style>
 </head>
-
 <body>
-  <h1>Vectorize MCP Server</h1>
-  <p>This is a serverless implementation of the Vectorize MCP Server for use with Claude Desktop.
-  </p>
+  <h1>Gitpod Knowledge Base MCP Server</h1>
+  <p>This is a Model Context Protocol (MCP) server that provides access to the Gitpod knowledge base.</p>
 
-  <div id="status" class="status">Checking server status...</div>
+  <h2>Connection Information</h2>
+  <p>To connect to this MCP server, use the following URL:</p>
+  <pre>https://kumquat-vectorize-mcp.netlify.app/sse</pre>
 
-  <h2>How to Use</h2>
-  <p>To use this MCP server with Claude Desktop:</p>
-  <ol>
-    <li>Open Claude Desktop</li>
-    <li>Go to Settings</li>
-    <li>Add a new MCP Server with the URL: <code id="apiUrl"></code></li>
-  </ol>
+  <h2>Configuration for Claude Desktop</h2>
+  <p>Add the following to your Claude Desktop configuration:</p>
+  <pre>
+{
+  "mcpServers": {
+    "gitpod-kb": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://kumquat-vectorize-mcp.netlify.app/sse"
+      ]
+    }
+  }
+}
+  </pre>
 
-  <script>
-    const apiUrl = `${window.location.origin}/api/mcp`;
-    document.getElementById('apiUrl').innerText = apiUrl;
+  <h2>Testing</h2>
+  <p>You can test the connection using the MCP inspector:</p>
+  <pre>npx @modelcontextprotocol/inspector@latest</pre>
 
-    // Check health endpoint
-    fetch(`${window.location.origin}/api/health`)
-      .then(response => {
-        if (response.ok) {
-          return response.json();
-        }
-        throw new Error('Health check failed');
-      })
-      .then(data => {
-        const statusEl = document.getElementById('status');
-        statusEl.innerHTML = `<strong>Status:</strong> Online | Last checked: ${data.timestamp}`;
-        statusEl.className = 'status online';
-      })
-      .catch(error => {
-        const statusEl = document.getElementById('status');
-        statusEl.innerHTML = `<strong>Status:</strong> Offline | Please check server configuration`;
-        statusEl.className = 'status offline';
-      });
-  </script>
+  <p>Then connect to <code>https://kumquat-vectorize-mcp.netlify.app/sse</code></p>
 </body>
-
 </html>
