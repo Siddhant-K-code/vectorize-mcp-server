@@ -16,7 +16,7 @@ exports.handler = async (event, context) => {
   console.log(`Query params: ${JSON.stringify(event.queryStringParameters)}`);
   console.log(`Request URL: ${event.rawUrl || 'N/A'}`);
   console.log(`Origin: ${event.headers.origin || event.headers.Origin || 'N/A'}`);
-  console.log(`Headers: ${JSON.stringify(event.headers)}`);  
+  console.log(`Headers: ${JSON.stringify(event.headers)}`);
   console.log(`Path: ${event.path}, Raw path: ${event.rawPath || 'N/A'}`);
 
   // Handle OPTIONS requests (CORS preflight)
@@ -36,7 +36,7 @@ exports.handler = async (event, context) => {
   }
 
   // Handle JSON-RPC requests via POST
-  if (event.httpMethod === "POST") {
+  if (event.httpMethod === "POST" || event.httpMethod === "PATCH") {
     // Log raw body for debugging
     console.log(`Raw body: ${event.body.substring(0, 1000)}${event.body.length > 1000 ? '...' : ''}`);
 
@@ -109,12 +109,17 @@ exports.handler = async (event, context) => {
             result: {
               protocolVersion: "2024-11-05",
               capabilities: {
-                retrieval: {
-                  available: true
-                },
                 tools: {
-                  executionMethods: ["retrieval/query"],
-                  available: true
+                  available: true,
+                  toolsManifestVersion: "2024-02-01",
+                  supportsFunctionCancellation: false,
+                  canExecuteFunctionsInParallel: false,
+                  supportedMethods: [
+                    "tools/list"
+                  ],
+                  executionMethods: [
+                    "tools/executeFunction"
+                  ]
                 }
               },
               serverInfo: {
@@ -150,35 +155,81 @@ exports.handler = async (event, context) => {
             result: {
               tools: [
                 {
-                  name: "retrieval",
-                  description: "Retrieves information from the Gitpod knowledge base",
+                  name: "vectorize.retrieval",
+                  description: "Retrieves information from the Vectorize knowledge base",
                   enabled: true,
-                  isSystemTool: true,
-                  canRunInBackground: false,
-                  type: "function",
-                  returnDirect: false,
                   toolCategory: "retrieval",
-                  functions: [
-                    {
-                      name: "query",
-                      description: "Query the Gitpod knowledge base",
-                      parameters: {
-                        type: "object",
-                        properties: {
-                          query: {
-                            type: "string",
-                            description: "The query to search for"
-                          },
-                          numResults: {
-                            type: "integer",
-                            description: "Number of results to return",
-                            default: 5
-                          }
+                  security: {
+                    toolPrivilege: "accessible"
+                  },
+                  schema: {
+                    name: "vectorize.retrieval",
+                    type: "function",
+                    description: "Retrieves information from the Vectorize knowledge base",
+                    parameters: {
+                      type: "object",
+                      properties: {
+                        query: {
+                          type: "string",
+                          description: "The query to search for in the knowledge base"
                         },
-                        required: ["query"]
-                      }
+                        numResults: {
+                          type: "integer",
+                          description: "Number of results to return",
+                          default: 5
+                        }
+                      },
+                      required: ["query"]
                     }
-                  ]
+                  }
+                },
+                {
+                  name: "vectorize.extractMetadata",
+                  description: "Extracts metadata from documents",
+                  enabled: true,
+                  toolCategory: "metadata",
+                  security: {
+                    toolPrivilege: "accessible"
+                  },
+                  schema: {
+                    name: "vectorize.extractMetadata",
+                    type: "function",
+                    description: "Extracts metadata from documents",
+                    parameters: {
+                      type: "object",
+                      properties: {
+                        text: {
+                          type: "string",
+                          description: "The text to extract metadata from"
+                        }
+                      },
+                      required: ["text"]
+                    }
+                  }
+                },
+                {
+                  name: "vectorize.extractText",
+                  description: "Extracts text from documents",
+                  enabled: true,
+                  toolCategory: "extraction",
+                  security: {
+                    toolPrivilege: "accessible"
+                  },
+                  schema: {
+                    name: "vectorize.extractText",
+                    type: "function",
+                    description: "Extracts text from documents",
+                    parameters: {
+                      type: "object",
+                      properties: {
+                        url: {
+                          type: "string",
+                          description: "The URL of the document to extract text from"
+                        }
+                      },
+                      required: ["url"]
+                    }
+                  }
                 }
               ]
             }
@@ -199,66 +250,137 @@ exports.handler = async (event, context) => {
         };
       }
 
-      // Retrieval query - handle both method patterns
-      if (method === "retrieval/query" || method === "tools/executeFunction") {
-        // Extract query parameters
-        const query = params?.query;
-        const numResults = params?.numResults || 5;
-
-        // Validate query
-        if (!query) {
-          console.log("Missing required parameter: query");
-          return {
-            statusCode: 200, // Use 200 even for errors in JSON-RPC
-            headers,
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              id,
-              error: {
-                code: -32602,
-                message: "Invalid params",
-                data: "Missing required parameter: query"
-              }
-            })
-          };
-        }
-
-        try {
-          // Get environment variables
-          const VECTORIZE_SECRETS_ENDPOINT = process.env.VECTORIZE_SECRETS_ENDPOINT || '';
-          const VECTORIZE_ORG_ID = process.env.VECTORIZE_ORG_ID || '';
-          const VECTORIZE_PIPELINE_ID = process.env.VECTORIZE_PIPELINE_ID || '';
-          const VECTORIZE_TOKEN = process.env.VECTORIZE_TOKEN || '';
-
-          // Log environment variable status (without exposing values)
-          console.log(`Environment variables present: ENDPOINT=${!!VECTORIZE_SECRETS_ENDPOINT}, ORG_ID=${!!VECTORIZE_ORG_ID}, PIPELINE_ID=${!!VECTORIZE_PIPELINE_ID}, TOKEN=${!!VECTORIZE_TOKEN}`);
-
-          // Construct API endpoint
-          let apiEndpoint = VECTORIZE_SECRETS_ENDPOINT;
-          if (!apiEndpoint || !apiEndpoint.includes(VECTORIZE_ORG_ID) || !apiEndpoint.includes(VECTORIZE_PIPELINE_ID)) {
-            apiEndpoint = `https://api.vectorize.io/v1/org/${VECTORIZE_ORG_ID}/pipelines/${VECTORIZE_PIPELINE_ID}/retrieval`;
+      // Handle tool execution
+      if (method === "tools/executeFunction") {
+        // Extract function name and parameters
+        const functionName = params?.name;
+        const functionParams = params?.parameters || {};
+        
+        console.log(`Executing function: ${functionName} with params: ${JSON.stringify(functionParams)}`);
+        
+        // Handle different tool functions
+        if (functionName === "vectorize.retrieval") {
+          // Extract query parameters for retrieval
+          const query = functionParams?.query;
+          const numResults = functionParams?.numResults || 5;
+          
+          // Validate query
+          if (!query) {
+            console.log("Missing required parameter: query");
+            return {
+              statusCode: 200, // Use 200 even for errors in JSON-RPC
+              headers,
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id,
+                error: {
+                  code: -32602,
+                  message: "Invalid params",
+                  data: "Missing required parameter: query"
+                }
+              })
+            };
           }
-
-          console.log(`Querying Vectorize API at ${apiEndpoint} with query: "${query.substring(0, 50)}..."`);
-
-          // Call Vectorize API
-          const response = await axios({
-            method: 'post',
-            url: apiEndpoint,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${VECTORIZE_TOKEN}`
-            },
-            data: {
-              question: query,
-              numResults
+          
+          try {
+            // Get environment variables
+            const VECTORIZE_SECRETS_ENDPOINT = process.env.VECTORIZE_SECRETS_ENDPOINT || '';
+            const VECTORIZE_ORG_ID = process.env.VECTORIZE_ORG_ID || '';
+            const VECTORIZE_PIPELINE_ID = process.env.VECTORIZE_PIPELINE_ID || '';
+            const VECTORIZE_TOKEN = process.env.VECTORIZE_TOKEN || '';
+  
+            // Log environment variable status (without exposing values)
+            console.log(`Environment variables present: ENDPOINT=${!!VECTORIZE_SECRETS_ENDPOINT}, ORG_ID=${!!VECTORIZE_ORG_ID}, PIPELINE_ID=${!!VECTORIZE_PIPELINE_ID}, TOKEN=${!!VECTORIZE_TOKEN}`);
+  
+            // Construct API endpoint
+            let apiEndpoint = VECTORIZE_SECRETS_ENDPOINT;
+            if (!apiEndpoint || !apiEndpoint.includes(VECTORIZE_ORG_ID) || !apiEndpoint.includes(VECTORIZE_PIPELINE_ID)) {
+              apiEndpoint = `https://api.vectorize.io/v1/org/${VECTORIZE_ORG_ID}/pipelines/${VECTORIZE_PIPELINE_ID}/retrieval`;
             }
-          });
-
-          // Log success
-          console.log(`Received ${response.data.documents?.length || 0} documents from Vectorize API`);
-
-          // Return formatted results
+  
+            console.log(`Querying Vectorize API at ${apiEndpoint} with query: "${query.substring(0, 50)}..."`);
+  
+            // Call Vectorize API
+            const response = await axios({
+              method: 'post',
+              url: apiEndpoint,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${VECTORIZE_TOKEN}`
+              },
+              data: {
+                question: query,
+                numResults
+              }
+            });
+  
+            // Log success
+            console.log(`Received ${response.data.documents?.length || 0} documents from Vectorize API`);
+  
+            // Return formatted results
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id,
+                result: {
+                  documents: (response.data.documents || []).map(doc => ({
+                    text: doc.text || doc.content || doc.pageContent || '',
+                    metadata: doc.metadata || {},
+                    score: doc.score || doc.similarity || 0
+                  }))
+                }
+              })
+            };
+          } catch (error) {
+            // Log detailed error
+            console.error("Vectorize API error:", error.message);
+            if (error.response) {
+              console.error("Response status:", error.response.status);
+              console.error("Response data:", JSON.stringify(error.response.data));
+            }
+  
+            // Return error in JSON-RPC format
+            return {
+              statusCode: 200, // Use 200 for JSON-RPC errors
+              headers,
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id,
+                error: {
+                  code: -32603,
+                  message: "Internal server error",
+                  data: {
+                    message: error.message,
+                    status: error.response?.status,
+                    data: error.response?.data
+                  }
+                }
+              })
+            };
+          }
+        } else if (functionName === "vectorize.extractMetadata") {
+          // Handle metadata extraction
+          const text = functionParams?.text;
+          
+          if (!text) {
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id,
+                error: {
+                  code: -32602,
+                  message: "Invalid params",
+                  data: "Missing required parameter: text"
+                }
+              })
+            };
+          }
+          
+          // Return sample metadata (this would typically call an actual metadata service)
           return {
             statusCode: 200,
             headers,
@@ -266,41 +388,79 @@ exports.handler = async (event, context) => {
               jsonrpc: "2.0",
               id,
               result: {
-                documents: (response.data.documents || []).map(doc => ({
-                  text: doc.text || doc.content || doc.pageContent || '',
-                  metadata: doc.metadata || {},
-                  score: doc.score || doc.similarity || 0
-                }))
+                metadata: {
+                  title: "Extracted title",
+                  authors: ["System"],
+                  createdDate: new Date().toISOString()
+                }
               }
             })
           };
-        } catch (error) {
-          // Log detailed error
-          console.error("Vectorize API error:", error.message);
-          if (error.response) {
-            console.error("Response status:", error.response.status);
-            console.error("Response data:", JSON.stringify(error.response.data));
+        } else if (functionName === "vectorize.extractText") {
+          // Handle text extraction
+          const url = functionParams?.url;
+          
+          if (!url) {
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({
+                jsonrpc: "2.0",
+                id,
+                error: {
+                  code: -32602,
+                  message: "Invalid params",
+                  data: "Missing required parameter: url"
+                }
+              })
+            };
           }
-
-          // Return error in JSON-RPC format
+          
+          // Return sample extracted text (this would typically call an actual extraction service)
           return {
-            statusCode: 200, // Use 200 for JSON-RPC errors
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              jsonrpc: "2.0",
+              id,
+              result: {
+                text: `Extracted text from ${url}. This is a placeholder response.`
+              }
+            })
+          };
+        } else {
+          // Unknown function
+          return {
+            statusCode: 200,
             headers,
             body: JSON.stringify({
               jsonrpc: "2.0",
               id,
               error: {
-                code: -32603,
-                message: "Internal server error",
-                data: {
-                  message: error.message,
-                  status: error.response?.status,
-                  data: error.response?.data
-                }
+                code: -32601,
+                message: "Method not found",
+                data: `Unknown function: ${functionName}`
               }
             })
           };
         }
+      }
+      
+      // Legacy support for the retrieval/query method
+      if (method === "retrieval/query") {
+        // Forward to tools/executeFunction
+        return exports.handler({
+          ...event,
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            method: "tools/executeFunction",
+            params: {
+              name: "vectorize.retrieval",
+              parameters: params
+            }
+          })
+        }, context);
       }
 
       // Log unknown methods
