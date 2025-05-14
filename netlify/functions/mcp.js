@@ -69,7 +69,8 @@ exports.handler = async (event, context) => {
 
     // Construct the request data according to Vectorize API requirements
     const requestData = {
-      question: question // Use the correct field name expected by the API
+      question: question, // Use the correct field name expected by the API
+      numResults: body.numResults || 5 // Add numResults with a default value of 5
     };
 
     // Include any additional parameters that might be allowed by the API
