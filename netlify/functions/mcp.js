@@ -1,4 +1,3 @@
-const { createHandler } = require('@netlify/functions');
 const axios = require('axios');
 
 exports.handler = async (event, context) => {
@@ -40,34 +39,69 @@ exports.handler = async (event, context) => {
   let body;
   try {
     body = JSON.parse(event.body);
+    console.log("Received body:", JSON.stringify(body));
   } catch (error) {
+    console.error("JSON parse error:", error.message);
     return {
       statusCode: 400,
-      body: JSON.stringify({ error: 'Invalid request body' })
+      body: JSON.stringify({
+        error: 'Invalid request body',
+        details: error.message
+      })
     };
   }
 
-  // Forward the request to Vectorize API
+  // Get the question from either the 'question' or 'query' field
+  const question = body.question || body.query;
+  if (!question) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({
+        error: 'Missing required parameter',
+        details: 'A "question" or "query" parameter is required'
+      })
+    };
+  }
+
+  // Forward the request to Vectorize API with the correct format
   try {
-    console.log(`Processing query: "${body.query?.substring(0, 50)}..."`);
+    console.log(`Processing question: "${question.substring(0, 100)}..."`);
+
+    // Construct the request data according to Vectorize API requirements
+    const requestData = {
+      question: question // Use the correct field name expected by the API
+    };
+
+    // Include any additional parameters that might be allowed by the API
+    if (body.params) {
+      // Filter out any known problematic fields
+      const { orgId, pipelineId, query, ...otherParams } = body.params;
+      Object.assign(requestData, otherParams);
+    }
+
+    console.log("Sending request to Vectorize API:", JSON.stringify(requestData));
+
+    // Construct the full endpoint URL if VECTORIZE_SECRETS_ENDPOINT doesn't already include the org and pipeline IDs
+    let apiEndpoint = VECTORIZE_SECRETS_ENDPOINT;
+
+    // If the endpoint doesn't already include the org and pipeline IDs, construct it
+    if (!apiEndpoint.includes(VECTORIZE_ORG_ID) || !apiEndpoint.includes(VECTORIZE_PIPELINE_ID)) {
+      apiEndpoint = `https://api.vectorize.io/v1/org/${VECTORIZE_ORG_ID}/pipelines/${VECTORIZE_PIPELINE_ID}/retrieval`;
+    }
+
+    console.log("Using API endpoint:", apiEndpoint);
 
     const response = await axios({
       method: 'post',
-      url: VECTORIZE_SECRETS_ENDPOINT,
+      url: apiEndpoint,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${VECTORIZE_TOKEN}`
       },
-      data: {
-        orgId: VECTORIZE_ORG_ID,
-        pipelineId: VECTORIZE_PIPELINE_ID,
-        query: body.query,
-        // Include any other parameters required by the Vectorize API
-        ...(body.params || {})
-      }
+      data: requestData
     });
 
-    console.log('Successfully processed query');
+    console.log('Successfully processed query. Status:', response.status);
     return {
       statusCode: 200,
       headers: {
@@ -76,7 +110,13 @@ exports.handler = async (event, context) => {
       body: JSON.stringify(response.data)
     };
   } catch (error) {
-    console.error('Error:', error.response?.data || error.message);
+    // Detailed error logging
+    console.error('Error calling Vectorize API:', error.message);
+    if (error.response) {
+      console.error('Response status:', error.response.status);
+      console.error('Response data:', JSON.stringify(error.response.data));
+    }
+
     return {
       statusCode: error.response?.status || 500,
       body: JSON.stringify({
