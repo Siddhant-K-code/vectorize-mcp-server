@@ -79,7 +79,7 @@ exports.handler = async (event, context) => {
       }
 
       // Connection handshake
-      if (method === "connection/handshake" || method === "connection/initialize" || method === "initialize") {
+      if (method === "connection/handshake" || method === "connection/initialize") {
         return {
           statusCode: 200,
           headers,
@@ -88,6 +88,26 @@ exports.handler = async (event, context) => {
             id,
             result: {
               status: "connected",
+              serverInfo: {
+                name: "Gitpod Knowledge Base",
+                version: "1.0.0"
+              }
+            }
+          })
+        };
+      }
+      
+      // Initialize method - special handling for Claude Desktop client
+      if (method === "initialize") {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              protocolVersion: "2024-11-05",
+              capabilities: {},
               serverInfo: {
                 name: "Gitpod Knowledge Base",
                 version: "1.0.0"
