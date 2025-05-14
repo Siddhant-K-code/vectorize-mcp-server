@@ -109,17 +109,9 @@ exports.handler = async (event, context) => {
             result: {
               protocolVersion: "2024-11-05",
               capabilities: {
+                retrieval: { available: true },
                 tools: {
-                  available: true,
-                  toolsManifestVersion: "2024-02-01",
-                  supportsFunctionCancellation: false,
-                  canExecuteFunctionsInParallel: false,
-                  supportedMethods: [
-                    "tools/list"
-                  ],
-                  executionMethods: [
-                    "tools/executeFunction"
-                  ]
+                  available: true
                 }
               },
               serverInfo: {
@@ -155,81 +147,33 @@ exports.handler = async (event, context) => {
             result: {
               tools: [
                 {
-                  name: "vectorize.retrieval",
-                  description: "Retrieves information from the Vectorize knowledge base",
+                  name: "retrieval",
+                  description: "Retrieves information from the knowledge base",
+                  type: "function",
+                  returnDirect: false,
+                  isSystemTool: true,
                   enabled: true,
-                  toolCategory: "retrieval",
-                  security: {
-                    toolPrivilege: "accessible"
-                  },
-                  schema: {
-                    name: "vectorize.retrieval",
-                    type: "function",
-                    description: "Retrieves information from the Vectorize knowledge base",
-                    parameters: {
-                      type: "object",
-                      properties: {
-                        query: {
-                          type: "string",
-                          description: "The query to search for in the knowledge base"
+                  functions: [
+                    {
+                      name: "query",
+                      description: "Query the knowledge base",
+                      parameters: {
+                        type: "object",
+                        properties: {
+                          query: {
+                            type: "string",
+                            description: "The query to search for in the knowledge base"
+                          },
+                          numResults: {
+                            type: "integer",
+                            description: "Number of results to return",
+                            default: 5
+                          }
                         },
-                        numResults: {
-                          type: "integer",
-                          description: "Number of results to return",
-                          default: 5
-                        }
-                      },
-                      required: ["query"]
+                        required: ["query"]
+                      }
                     }
-                  }
-                },
-                {
-                  name: "vectorize.extractMetadata",
-                  description: "Extracts metadata from documents",
-                  enabled: true,
-                  toolCategory: "metadata",
-                  security: {
-                    toolPrivilege: "accessible"
-                  },
-                  schema: {
-                    name: "vectorize.extractMetadata",
-                    type: "function",
-                    description: "Extracts metadata from documents",
-                    parameters: {
-                      type: "object",
-                      properties: {
-                        text: {
-                          type: "string",
-                          description: "The text to extract metadata from"
-                        }
-                      },
-                      required: ["text"]
-                    }
-                  }
-                },
-                {
-                  name: "vectorize.extractText",
-                  description: "Extracts text from documents",
-                  enabled: true,
-                  toolCategory: "extraction",
-                  security: {
-                    toolPrivilege: "accessible"
-                  },
-                  schema: {
-                    name: "vectorize.extractText",
-                    type: "function",
-                    description: "Extracts text from documents",
-                    parameters: {
-                      type: "object",
-                      properties: {
-                        url: {
-                          type: "string",
-                          description: "The URL of the document to extract text from"
-                        }
-                      },
-                      required: ["url"]
-                    }
-                  }
+                  ]
                 }
               ]
             }
@@ -259,7 +203,7 @@ exports.handler = async (event, context) => {
         console.log(`Executing function: ${functionName} with params: ${JSON.stringify(functionParams)}`);
         
         // Handle different tool functions
-        if (functionName === "vectorize.retrieval") {
+        if (functionName === "retrieval") {
           // Extract query parameters for retrieval
           const query = functionParams?.query;
           const numResults = functionParams?.numResults || 5;
@@ -360,74 +304,7 @@ exports.handler = async (event, context) => {
               })
             };
           }
-        } else if (functionName === "vectorize.extractMetadata") {
-          // Handle metadata extraction
-          const text = functionParams?.text;
-          
-          if (!text) {
-            return {
-              statusCode: 200,
-              headers,
-              body: JSON.stringify({
-                jsonrpc: "2.0",
-                id,
-                error: {
-                  code: -32602,
-                  message: "Invalid params",
-                  data: "Missing required parameter: text"
-                }
-              })
-            };
-          }
-          
-          // Return sample metadata (this would typically call an actual metadata service)
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              id,
-              result: {
-                metadata: {
-                  title: "Extracted title",
-                  authors: ["System"],
-                  createdDate: new Date().toISOString()
-                }
-              }
-            })
-          };
-        } else if (functionName === "vectorize.extractText") {
-          // Handle text extraction
-          const url = functionParams?.url;
-          
-          if (!url) {
-            return {
-              statusCode: 200,
-              headers,
-              body: JSON.stringify({
-                jsonrpc: "2.0",
-                id,
-                error: {
-                  code: -32602,
-                  message: "Invalid params",
-                  data: "Missing required parameter: url"
-                }
-              })
-            };
-          }
-          
-          // Return sample extracted text (this would typically call an actual extraction service)
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              id,
-              result: {
-                text: `Extracted text from ${url}. This is a placeholder response.`
-              }
-            })
-          };
+        
         } else {
           // Unknown function
           return {
@@ -456,8 +333,11 @@ exports.handler = async (event, context) => {
             id,
             method: "tools/executeFunction",
             params: {
-              name: "vectorize.retrieval",
-              parameters: params
+              name: "retrieval",
+              parameters: {
+                query: params.query,
+                numResults: params.numResults || 5
+              }
             }
           })
         }, context);
