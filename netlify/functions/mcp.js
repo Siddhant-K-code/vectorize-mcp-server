@@ -1,15 +1,7 @@
 const axios = require('axios');
 
 exports.handler = async (event, context) => {
-  // Only allow POST requests for API endpoints
-  if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: "Method not allowed" })
-    };
-  }
-
-  // Check if environment variables are properly set
+  // Extract Vectorize credentials from environment variables
   const requiredEnvVars = [
     'VECTORIZE_SECRETS_ENDPOINT',
     'VECTORIZE_ORG_ID',
@@ -22,6 +14,10 @@ exports.handler = async (event, context) => {
     console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
     return {
       statusCode: 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      },
       body: JSON.stringify({
         error: 'Server configuration error',
         details: 'Missing required environment variables'
@@ -29,67 +25,126 @@ exports.handler = async (event, context) => {
     };
   }
 
-  // Extract Vectorize credentials from environment variables
   const VECTORIZE_SECRETS_ENDPOINT = process.env.VECTORIZE_SECRETS_ENDPOINT;
   const VECTORIZE_ORG_ID = process.env.VECTORIZE_ORG_ID;
   const VECTORIZE_PIPELINE_ID = process.env.VECTORIZE_PIPELINE_ID;
   const VECTORIZE_TOKEN = process.env.VECTORIZE_TOKEN;
 
-  // Parse the request body
-  let body;
-  try {
-    body = JSON.parse(event.body);
-    console.log("Received body:", JSON.stringify(body));
-  } catch (error) {
-    console.error("JSON parse error:", error.message);
+  console.log(`Received ${event.httpMethod} request`);
+
+  // Handle OPTIONS requests (CORS preflight)
+  if (event.httpMethod === "OPTIONS") {
     return {
-      statusCode: 400,
-      body: JSON.stringify({
-        error: 'Invalid request body',
-        details: error.message
-      })
+      statusCode: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+      },
+      body: ""
     };
   }
 
-  // Get the question from either the 'question' or 'query' field
-  const question = body.question || body.query;
-  if (!question) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({
-        error: 'Missing required parameter',
-        details: 'A "question" or "query" parameter is required'
-      })
-    };
+  // Check if this is a GET request for SSE streaming
+  if (event.httpMethod === "GET") {
+    // Parse query parameters for SSE requests
+    const params = event.queryStringParameters || {};
+    const question = params.question || params.query;
+
+    if (!question) {
+      return {
+        statusCode: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        },
+        body: JSON.stringify({
+          error: 'Missing required parameter',
+          details: 'A "question" or "query" parameter is required'
+        })
+      };
+    }
+
+    // Construct the API endpoint
+    let apiEndpointUrl = VECTORIZE_SECRETS_ENDPOINT;
+    if (!apiEndpointUrl.includes(VECTORIZE_ORG_ID) || !apiEndpointUrl.includes(VECTORIZE_PIPELINE_ID)) {
+      apiEndpointUrl = `https://api.vectorize.io/v1/org/${VECTORIZE_ORG_ID}/pipelines/${VECTORIZE_PIPELINE_ID}/retrieval`;
+    }
+
+    // Handle the request
+    return await handleRequest(question, params.numResults, apiEndpointUrl, VECTORIZE_TOKEN);
   }
 
-  // Forward the request to Vectorize API with the correct format
+  // Handle standard POST requests
+  if (event.httpMethod === "POST") {
+    // Parse the request body
+    let body;
+    try {
+      body = JSON.parse(event.body);
+      console.log("Received body:", JSON.stringify(body));
+    } catch (error) {
+      console.error("JSON parse error:", error.message);
+      return {
+        statusCode: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        },
+        body: JSON.stringify({
+          error: 'Invalid request body',
+          details: error.message
+        })
+      };
+    }
+
+    // Get the question from either the 'question' or 'query' field
+    const question = body.question || body.query;
+    if (!question) {
+      return {
+        statusCode: 400,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        },
+        body: JSON.stringify({
+          error: 'Missing required parameter',
+          details: 'A "question" or "query" parameter is required'
+        })
+      };
+    }
+
+    // Construct the API endpoint
+    let apiEndpointUrl = VECTORIZE_SECRETS_ENDPOINT;
+    if (!apiEndpointUrl.includes(VECTORIZE_ORG_ID) || !apiEndpointUrl.includes(VECTORIZE_PIPELINE_ID)) {
+      apiEndpointUrl = `https://api.vectorize.io/v1/org/${VECTORIZE_ORG_ID}/pipelines/${VECTORIZE_PIPELINE_ID}/retrieval`;
+    }
+
+    return await handleRequest(question, body.numResults, apiEndpointUrl, VECTORIZE_TOKEN);
+  }
+
+  // If we get here, it's an unsupported method
+  return {
+    statusCode: 405,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*"
+    },
+    body: JSON.stringify({ error: "Method not allowed" })
+  };
+};
+
+// Helper function to handle the API request (used by both GET and POST handlers)
+async function handleRequest(question, numResults, apiEndpoint, token) {
   try {
     console.log(`Processing question: "${question.substring(0, 100)}..."`);
 
     // Construct the request data according to Vectorize API requirements
     const requestData = {
-      question: question, // Use the correct field name expected by the API
-      numResults: body.numResults || 5 // Add numResults with a default value of 5
+      question: question,
+      numResults: parseInt(numResults) || 5
     };
 
-    // Include any additional parameters that might be allowed by the API
-    if (body.params) {
-      // Filter out any known problematic fields
-      const { orgId, pipelineId, query, ...otherParams } = body.params;
-      Object.assign(requestData, otherParams);
-    }
-
     console.log("Sending request to Vectorize API:", JSON.stringify(requestData));
-
-    // Construct the full endpoint URL if VECTORIZE_SECRETS_ENDPOINT doesn't already include the org and pipeline IDs
-    let apiEndpoint = VECTORIZE_SECRETS_ENDPOINT;
-
-    // If the endpoint doesn't already include the org and pipeline IDs, construct it
-    if (!apiEndpoint.includes(VECTORIZE_ORG_ID) || !apiEndpoint.includes(VECTORIZE_PIPELINE_ID)) {
-      apiEndpoint = `https://api.vectorize.io/v1/org/${VECTORIZE_ORG_ID}/pipelines/${VECTORIZE_PIPELINE_ID}/retrieval`;
-    }
-
     console.log("Using API endpoint:", apiEndpoint);
 
     const response = await axios({
@@ -97,16 +152,20 @@ exports.handler = async (event, context) => {
       url: apiEndpoint,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${VECTORIZE_TOKEN}`
+        'Authorization': `Bearer ${token}`
       },
       data: requestData
     });
 
     console.log('Successfully processed query. Status:', response.status);
+
+    // Return the response with CORS headers for browser clients
     return {
       statusCode: 200,
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization"
       },
       body: JSON.stringify(response.data)
     };
@@ -120,10 +179,14 @@ exports.handler = async (event, context) => {
 
     return {
       statusCode: error.response?.status || 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      },
       body: JSON.stringify({
         error: 'Failed to process request',
         details: error.response?.data || error.message
       })
     };
   }
-};
+}
