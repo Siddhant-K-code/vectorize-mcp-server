@@ -1,31 +1,40 @@
-[build]
-  command = "npm run build"
-  functions = "netlify/functions"
-  publish = "public"
-
-# JSON-RPC over HTTP endpoints
-[[redirects]]
-  from = "/api/mcp"
-  to = "/.netlify/functions/mcp"
-  status = 200
-
-[[redirects]]
-  from = "/mcp"
-  to = "/.netlify/functions/mcp"
-  status = 200
-
-# SSE endpoints - make sure these point to sse.js, not mcp.js
-[[redirects]]
-  from = "/sse"
-  to = "/.netlify/functions/sse"
-  status = 200
-
-[[redirects]]
-  from = "/api/sse"
-  to = "/.netlify/functions/sse"
-  status = 200
-
+ Additional endpoint aliases for compatibility
 [[redirects]]
   from = "/v1"
   to = "/.netlify/functions/mcp-streamable"
   status = 200
+  force = true
+
+# Support for legacy SSE endpoint
+[[redirects]]
+  from = "/sse"
+  to = "/.netlify/functions/mcp-streamable"
+  status = 200
+  force = true
+
+# API-style endpoint
+[[redirects]]
+  from = "/api/mcp"
+  to = "/.netlify/functions/mcp-streamable"
+  status = 200
+  force = true
+
+# Health check endpoint
+[[redirects]]
+  from = "/health"
+  to = "/.netlify/functions/health"
+  status = 200
+  force = true
+
+# Handle function errors
+[build.processing.html]
+  pretty_urls = true
+
+# Configure headers for CORS and caching
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"
+    Cache-Control = "no-cache"
