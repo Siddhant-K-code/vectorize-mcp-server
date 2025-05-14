@@ -6,7 +6,7 @@ exports.handler = async (event, context) => {
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PATCH",
     "Content-Type": "application/json"
   };
 
@@ -322,13 +322,19 @@ exports.handler = async (event, context) => {
     };
   }
 
+  // Handle PATCH requests similar to POST
+  if (event.httpMethod === "PATCH") {
+    // Process PATCH like POST for compatibility
+    return exports.handler({...event, httpMethod: "POST"}, context);
+  }
+
   // Reject other HTTP methods
   return {
     statusCode: 405,
     headers,
     body: JSON.stringify({
       error: "Method not allowed",
-      message: "This endpoint only supports GET, POST, and OPTIONS requests"
+      message: "This endpoint only supports GET, POST, PATCH, and OPTIONS requests"
     })
   };
 };

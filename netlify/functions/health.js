@@ -15,14 +15,14 @@ exports.handler = async (event) => {
     headers: {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PATCH",
       "Access-Control-Allow-Headers": "Content-Type, Authorization"
     },
     body: JSON.stringify({
       status: 'ok',
       service: 'Vectorize MCP Server',
       environment: status,
-      supportedMethods: ['GET', 'POST', 'OPTIONS'],
+      supportedMethods: ['GET', 'POST', 'OPTIONS', 'PATCH'],
       requestMethod: event.httpMethod,
       timestamp: new Date().toISOString()
     })
