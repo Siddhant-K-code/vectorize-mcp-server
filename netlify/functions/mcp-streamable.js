@@ -10,6 +10,10 @@ exports.handler = async (event, context) => {
     "Content-Type": "application/json"
   };
 
+  // Log all incoming requests for debugging
+  console.log(`Request: ${event.httpMethod} ${event.path}`);
+  console.log(`Headers: ${JSON.stringify(event.headers)}`);
+
   // Handle OPTIONS requests (CORS preflight)
   if (event.httpMethod === "OPTIONS") {
     return {
@@ -21,14 +25,21 @@ exports.handler = async (event, context) => {
 
   // Handle JSON-RPC requests via POST
   if (event.httpMethod === "POST") {
+    // Log raw body for debugging
+    console.log(`Raw body: ${event.body.substring(0, 1000)}${event.body.length > 1000 ? '...' : ''}`);
+
     try {
       // Parse JSON-RPC request
       const request = JSON.parse(event.body);
-      console.log("Received request:", JSON.stringify(request));
 
-      const { jsonrpc, method, params, id } = request;
+      // Destructure request properties with defaults
+      const { jsonrpc = "2.0", method = "", params = {}, id = null } = request;
 
-      // Handle standard JSON-RPC methods
+      console.log(`Parsed request: method=${method}, id=${id}, params=${JSON.stringify(params)}`);
+
+      // Handle all standard MCP methods
+
+      // Discovery method
       if (method === "rpc.discover") {
         return {
           statusCode: 200,
@@ -40,13 +51,39 @@ exports.handler = async (event, context) => {
               name: "Gitpod Knowledge Base",
               version: "1.0.0",
               transports: ["streamable-http"],
-              methods: ["tools/list", "prompts/list", "retrieval/query", "connection/heartbeat"]
+              methods: [
+                "rpc.discover",
+                "tools/list",
+                "prompts/list",
+                "retrieval/query",
+                "connection/handshake",
+                "connection/heartbeat"
+              ]
             }
           })
         };
       }
 
-      // Handle connection/heartbeat
+      // Connection handshake
+      if (method === "connection/handshake" || method === "connection/initialize") {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              status: "connected",
+              serverInfo: {
+                name: "Gitpod Knowledge Base",
+                version: "1.0.0"
+              }
+            }
+          })
+        };
+      }
+
+      // Connection heartbeat
       if (method === "connection/heartbeat") {
         return {
           statusCode: 200,
@@ -59,7 +96,7 @@ exports.handler = async (event, context) => {
         };
       }
 
-      // Handle tools/list
+      // Tools list
       if (method === "tools/list") {
         return {
           statusCode: 200,
@@ -100,7 +137,7 @@ exports.handler = async (event, context) => {
         };
       }
 
-      // Handle prompts/list
+      // Prompts list
       if (method === "prompts/list") {
         return {
           statusCode: 200,
@@ -113,15 +150,17 @@ exports.handler = async (event, context) => {
         };
       }
 
-      // Handle method: retrieval/query
+      // Retrieval query
       if (method === "retrieval/query") {
-        // Extract parameters
+        // Extract query parameters
         const query = params?.query;
         const numResults = params?.numResults || 5;
 
+        // Validate query
         if (!query) {
+          console.log("Missing required parameter: query");
           return {
-            statusCode: 400,
+            statusCode: 200, // Use 200 even for errors in JSON-RPC
             headers,
             body: JSON.stringify({
               jsonrpc: "2.0",
@@ -142,13 +181,16 @@ exports.handler = async (event, context) => {
           const VECTORIZE_PIPELINE_ID = process.env.VECTORIZE_PIPELINE_ID;
           const VECTORIZE_TOKEN = process.env.VECTORIZE_TOKEN;
 
+          // Log environment variable status (without exposing values)
+          console.log(`Environment variables present: ENDPOINT=${!!VECTORIZE_SECRETS_ENDPOINT}, ORG_ID=${!!VECTORIZE_ORG_ID}, PIPELINE_ID=${!!VECTORIZE_PIPELINE_ID}, TOKEN=${!!VECTORIZE_TOKEN}`);
+
           // Construct API endpoint
           let apiEndpoint = VECTORIZE_SECRETS_ENDPOINT;
-          if (!apiEndpoint.includes(VECTORIZE_ORG_ID) || !apiEndpoint.includes(VECTORIZE_PIPELINE_ID)) {
+          if (!apiEndpoint || !apiEndpoint.includes(VECTORIZE_ORG_ID) || !apiEndpoint.includes(VECTORIZE_PIPELINE_ID)) {
             apiEndpoint = `https://api.vectorize.io/v1/org/${VECTORIZE_ORG_ID}/pipelines/${VECTORIZE_PIPELINE_ID}/retrieval`;
           }
 
-          console.log(`Querying Vectorize API: "${query.substring(0, 50)}..."`);
+          console.log(`Querying Vectorize API at ${apiEndpoint} with query: "${query.substring(0, 50)}..."`);
 
           // Call Vectorize API
           const response = await axios({
@@ -164,9 +206,10 @@ exports.handler = async (event, context) => {
             }
           });
 
-          console.log(`Received ${response.data.documents?.length || 0} documents from Vectorize`);
+          // Log success
+          console.log(`Received ${response.data.documents?.length || 0} documents from Vectorize API`);
 
-          // Return results
+          // Return formatted results
           return {
             statusCode: 200,
             headers,
@@ -179,9 +222,16 @@ exports.handler = async (event, context) => {
             })
           };
         } catch (error) {
-          console.error("API error:", error.message);
+          // Log detailed error
+          console.error("Vectorize API error:", error.message);
+          if (error.response) {
+            console.error("Response status:", error.response.status);
+            console.error("Response data:", JSON.stringify(error.response.data));
+          }
+
+          // Return error in JSON-RPC format
           return {
-            statusCode: 500,
+            statusCode: 200, // Use 200 for JSON-RPC errors
             headers,
             body: JSON.stringify({
               jsonrpc: "2.0",
@@ -189,33 +239,49 @@ exports.handler = async (event, context) => {
               error: {
                 code: -32603,
                 message: "Internal server error",
-                data: error.message
+                data: {
+                  message: error.message,
+                  status: error.response?.status,
+                  data: error.response?.data
+                }
               }
             })
           };
         }
       }
 
-      // Log unknown methods for debugging
+      // Log unknown methods
       console.warn(`Unknown method requested: ${method}`);
 
       // Handle unknown methods
       return {
-        statusCode: 404,
+        statusCode: 200, // Use 200 for JSON-RPC errors
         headers,
         body: JSON.stringify({
           jsonrpc: "2.0",
           id,
           error: {
             code: -32601,
-            message: "Method not found"
+            message: "Method not found",
+            data: {
+              method: method,
+              supportedMethods: [
+                "rpc.discover",
+                "tools/list",
+                "prompts/list",
+                "retrieval/query",
+                "connection/handshake",
+                "connection/heartbeat"
+              ]
+            }
           }
         })
       };
     } catch (error) {
+      // Handle JSON parse errors
       console.error("Parse error:", error.message);
       return {
-        statusCode: 400,
+        statusCode: 200, // Use 200 for JSON-RPC errors
         headers,
         body: JSON.stringify({
           jsonrpc: "2.0",
@@ -230,25 +296,39 @@ exports.handler = async (event, context) => {
     }
   }
 
-  // Handle GET requests (health check)
+  // Handle GET requests (health check and basic info)
   if (event.httpMethod === "GET") {
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         status: "ok",
-        message: "MCP server is running. Use POST for JSON-RPC requests.",
-        supportedMethods: ["rpc.discover", "tools/list", "prompts/list", "retrieval/query", "connection/heartbeat"]
+        message: "Gitpod Knowledge Base MCP Server is running",
+        serverInfo: {
+          name: "Gitpod Knowledge Base",
+          version: "1.0.0",
+          transport: "streamable-http"
+        },
+        supportedMethods: [
+          "rpc.discover",
+          "tools/list",
+          "prompts/list",
+          "retrieval/query",
+          "connection/handshake",
+          "connection/heartbeat"
+        ],
+        usage: "POST JSON-RPC 2.0 formatted requests to this endpoint"
       })
     };
   }
 
-  // Reject other methods
+  // Reject other HTTP methods
   return {
     statusCode: 405,
     headers,
     body: JSON.stringify({
-      error: "Method not allowed"
+      error: "Method not allowed",
+      message: "This endpoint only supports GET, POST, and OPTIONS requests"
     })
   };
 };
