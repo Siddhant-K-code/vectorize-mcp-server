@@ -1,5 +1,5 @@
 // netlify/functions/mcp-streamable.js
-const axios = require('axios');
+const axios = require('axios').default;
 
 exports.handler = async (event, context) => {
   // Set CORS headers for all responses
@@ -7,7 +7,8 @@ exports.handler = async (event, context) => {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PATCH",
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
   };
 
   // Log all incoming requests for debugging
@@ -16,9 +17,16 @@ exports.handler = async (event, context) => {
 
   // Handle OPTIONS requests (CORS preflight)
   if (event.httpMethod === "OPTIONS") {
+    // Return explicit CORS headers for preflight requests
     return {
       statusCode: 200,
-      headers,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PATCH",
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+      },
       body: ""
     };
   }
@@ -176,10 +184,10 @@ exports.handler = async (event, context) => {
 
         try {
           // Get environment variables
-          const VECTORIZE_SECRETS_ENDPOINT = process.env.VECTORIZE_SECRETS_ENDPOINT;
-          const VECTORIZE_ORG_ID = process.env.VECTORIZE_ORG_ID;
-          const VECTORIZE_PIPELINE_ID = process.env.VECTORIZE_PIPELINE_ID;
-          const VECTORIZE_TOKEN = process.env.VECTORIZE_TOKEN;
+          const VECTORIZE_SECRETS_ENDPOINT = process.env.VECTORIZE_SECRETS_ENDPOINT || '';
+          const VECTORIZE_ORG_ID = process.env.VECTORIZE_ORG_ID || '';
+          const VECTORIZE_PIPELINE_ID = process.env.VECTORIZE_PIPELINE_ID || '';
+          const VECTORIZE_TOKEN = process.env.VECTORIZE_TOKEN || '';
 
           // Log environment variable status (without exposing values)
           console.log(`Environment variables present: ENDPOINT=${!!VECTORIZE_SECRETS_ENDPOINT}, ORG_ID=${!!VECTORIZE_ORG_ID}, PIPELINE_ID=${!!VECTORIZE_PIPELINE_ID}, TOKEN=${!!VECTORIZE_TOKEN}`);

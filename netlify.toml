@@ -1,4 +1,9 @@
- Additional endpoint aliases for compatibility
+[build]
+  command = "npm run build"
+  functions = "netlify/functions"
+  publish = "public"
+
+# Additional endpoint aliases for compatibility
 [[redirects]]
   from = "/v1"
   to = "/.netlify/functions/mcp-streamable"
