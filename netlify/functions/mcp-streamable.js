@@ -107,7 +107,10 @@ exports.handler = async (event, context) => {
             id,
             result: {
               protocolVersion: "2024-11-05",
-              capabilities: {},
+              capabilities: {
+                retrieval: true,
+                tools: true
+              },
               serverInfo: {
                 name: "Gitpod Knowledge Base",
                 version: "1.0.0"
@@ -143,6 +146,8 @@ exports.handler = async (event, context) => {
                 {
                   name: "retrieval",
                   description: "Retrieves information from the Gitpod knowledge base",
+                  enabled: true,
+                  isSystemTool: true,
                   functions: [
                     {
                       name: "query",
@@ -251,7 +256,11 @@ exports.handler = async (event, context) => {
               jsonrpc: "2.0",
               id,
               result: {
-                documents: response.data.documents || []
+                documents: (response.data.documents || []).map(doc => ({
+                  text: doc.text || doc.content || doc.pageContent || '',
+                  metadata: doc.metadata || {},
+                  score: doc.score || doc.similarity || 0
+                }))
               }
             })
           };
