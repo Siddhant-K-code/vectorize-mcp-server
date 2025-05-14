@@ -12,12 +12,13 @@ exports.handler = async (event, context) => {
   };
 
   // Log all incoming requests for debugging
-  console.log(`Request: ${event.httpMethod} ${event.path}`);
-  console.log(`Query params: ${JSON.stringify(event.queryStringParameters)}`);
-  console.log(`Request URL: ${event.rawUrl || 'N/A'}`);
-  console.log(`Origin: ${event.headers.origin || event.headers.Origin || 'N/A'}`);
-  console.log(`Headers: ${JSON.stringify(event.headers)}`);
-  console.log(`Path: ${event.path}, Raw path: ${event.rawPath || 'N/A'}`);
+  console.log(`DEBUG REQUEST: ${event.httpMethod} ${event.path}`);
+  console.log(`DEBUG QUERY: ${JSON.stringify(event.queryStringParameters)}`);
+  console.log(`DEBUG URL: ${event.rawUrl || 'N/A'}`);
+  console.log(`DEBUG ORIGIN: ${event.headers.origin || event.headers.Origin || 'N/A'}`);
+  console.log(`DEBUG HEADERS: ${JSON.stringify(event.headers)}`);
+  console.log(`DEBUG PATH: ${event.path}, Raw path: ${event.rawPath || 'N/A'}`);
+  console.log(`DEBUG BODY: ${event.body}`);
 
   // Handle OPTIONS requests (CORS preflight)
   if (event.httpMethod === "OPTIONS") {
@@ -100,6 +101,7 @@ exports.handler = async (event, context) => {
       
       // Initialize method - special handling for Claude Desktop client
       if (method === "initialize") {
+        console.log(`DEBUG INITIALIZE: ${JSON.stringify(params)}`);
         return {
           statusCode: 200,
           headers,
@@ -109,10 +111,9 @@ exports.handler = async (event, context) => {
             result: {
               protocolVersion: "2024-11-05",
               capabilities: {
-                retrieval: { available: true },
-                tools: {
-                  available: true
-                }
+                retrieval: true,
+                tools: true,
+                function_calling: true
               },
               serverInfo: {
                 name: "Gitpod Knowledge Base",
@@ -138,46 +139,45 @@ exports.handler = async (event, context) => {
 
       // Tools list
       if (method === "tools/list") {
+        const response = {
+          jsonrpc: "2.0",
+          id,
+          result: {
+            tools: [
+              {
+                name: "vector_db",
+                description: "Use this tool to search the knowledge base",
+                enabled: true,
+                returnDirect: false,
+                toolCategory: "retrieval",
+                schema: {
+                  type: "function",
+                  function: {
+                    name: "vector_db",
+                    description: "Retrieve information from the Gitpod knowledge base",
+                    parameters: {
+                      type: "object",
+                      required: ["query"],
+                      properties: {
+                        query: {
+                          type: "string",
+                          description: "The query to search for relevant information"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        };
+        
+        console.log(`DEBUG TOOLS RESPONSE: ${JSON.stringify(response)}`);
+        
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify({
-            jsonrpc: "2.0",
-            id,
-            result: {
-              tools: [
-                {
-                  name: "retrieval",
-                  description: "Retrieves information from the knowledge base",
-                  type: "function",
-                  returnDirect: false,
-                  isSystemTool: true,
-                  enabled: true,
-                  functions: [
-                    {
-                      name: "query",
-                      description: "Query the knowledge base",
-                      parameters: {
-                        type: "object",
-                        properties: {
-                          query: {
-                            type: "string",
-                            description: "The query to search for in the knowledge base"
-                          },
-                          numResults: {
-                            type: "integer",
-                            description: "Number of results to return",
-                            default: 5
-                          }
-                        },
-                        required: ["query"]
-                      }
-                    }
-                  ]
-                }
-              ]
-            }
-          })
+          body: JSON.stringify(response)
         };
       }
 
@@ -200,10 +200,10 @@ exports.handler = async (event, context) => {
         const functionName = params?.name;
         const functionParams = params?.parameters || {};
         
-        console.log(`Executing function: ${functionName} with params: ${JSON.stringify(functionParams)}`);
+        console.log(`DEBUG EXECUTE: ${functionName} with params: ${JSON.stringify(functionParams)}`);
         
         // Handle different tool functions
-        if (functionName === "retrieval") {
+        if (functionName === "vector_db") {
           // Extract query parameters for retrieval
           const query = functionParams?.query;
           const numResults = functionParams?.numResults || 5;
@@ -262,20 +262,34 @@ exports.handler = async (event, context) => {
             console.log(`Received ${response.data.documents?.length || 0} documents from Vectorize API`);
   
             // Return formatted results
+            // Log the response from Vectorize
+            console.log(`DEBUG VECTORIZE RESPONSE: ${JSON.stringify(response.data)}`);
+            
+            const documents = (response.data.documents || []).map(doc => ({
+              text: doc.text || doc.content || doc.pageContent || '',
+              metadata: doc.metadata || {},
+              score: doc.score || doc.similarity || 0
+            }));
+            
+            const toolResult = {
+              jsonrpc: "2.0",
+              id,
+              result: {
+                tool_results: [
+                  {
+                    tool_name: "vector_db",
+                    tool_result: { documents }
+                  }
+                ]
+              }
+            };
+            
+            console.log(`DEBUG TOOL RESULT: ${JSON.stringify(toolResult)}`);
+            
             return {
               statusCode: 200,
               headers,
-              body: JSON.stringify({
-                jsonrpc: "2.0",
-                id,
-                result: {
-                  documents: (response.data.documents || []).map(doc => ({
-                    text: doc.text || doc.content || doc.pageContent || '',
-                    metadata: doc.metadata || {},
-                    score: doc.score || doc.similarity || 0
-                  }))
-                }
-              })
+              body: JSON.stringify(toolResult)
             };
           } catch (error) {
             // Log detailed error
@@ -333,10 +347,9 @@ exports.handler = async (event, context) => {
             id,
             method: "tools/executeFunction",
             params: {
-              name: "retrieval",
+              name: "vector_db",
               parameters: {
-                query: params.query,
-                numResults: params.numResults || 5
+                query: params.query
               }
             }
           })
