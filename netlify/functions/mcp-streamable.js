@@ -13,7 +13,11 @@ exports.handler = async (event, context) => {
 
   // Log all incoming requests for debugging
   console.log(`Request: ${event.httpMethod} ${event.path}`);
-  console.log(`Headers: ${JSON.stringify(event.headers)}`);
+  console.log(`Query params: ${JSON.stringify(event.queryStringParameters)}`);
+  console.log(`Request URL: ${event.rawUrl || 'N/A'}`);
+  console.log(`Origin: ${event.headers.origin || event.headers.Origin || 'N/A'}`);
+  console.log(`Headers: ${JSON.stringify(event.headers)}`);  
+  console.log(`Path: ${event.path}, Raw path: ${event.rawPath || 'N/A'}`);
 
   // Handle OPTIONS requests (CORS preflight)
   if (event.httpMethod === "OPTIONS") {
