@@ -4,11 +4,12 @@
   publish = "public"
 
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  from = "/mcp"
+  to = "/.netlify/functions/mcp"
   status = 200
 
+# Redirect /sse to /mcp for backward compatibility
 [[redirects]]
   from = "/sse"
-  to = "/.netlify/functions/sse"
+  to = "/.netlify/functions/mcp"
   status = 200
