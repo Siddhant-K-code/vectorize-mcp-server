@@ -111,12 +111,14 @@ exports.handler = async (event, context) => {
             result: {
               protocolVersion: "2024-11-05",
               capabilities: {
-                retrieval: true,
                 tools: {
                   available: true,
-                  executionMethods: ["tools/executeFunction"]
-                },
-                function_calling: true
+                  manifest: {
+                    name: "gitpod_kb",
+                    version: "1.0.0"
+                  },
+                  tags: {"category:retrieval": true}
+                }
               },
               serverInfo: {
                 name: "Gitpod Knowledge Base",
@@ -148,26 +150,19 @@ exports.handler = async (event, context) => {
           result: {
             tools: [
               {
-                name: "vector_db",
-                description: "Use this tool to search the knowledge base",
-                enabled: true,
-                returnDirect: false,
-                toolCategory: "retrieval",
-                schema: {
-                  type: "function",
-                  function: {
-                    name: "vector_db",
-                    description: "Retrieve information from the Gitpod knowledge base",
-                    parameters: {
-                      type: "object",
-                      required: ["query"],
-                      properties: {
-                        query: {
-                          type: "string",
-                          description: "The query to search for relevant information"
-                        }
+                type: "function",
+                function: {
+                  name: "knowledge_retrieval",
+                  description: "Search the knowledge base for information",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      query: {
+                        type: "string",
+                        description: "The search query"
                       }
-                    }
+                    },
+                    required: ["query"]
                   }
                 }
               }
@@ -206,7 +201,7 @@ exports.handler = async (event, context) => {
         console.log(`DEBUG EXECUTE: ${functionName} with params: ${JSON.stringify(functionParams)}`);
         
         // Handle different tool functions
-        if (functionName === "vector_db") {
+        if (functionName === "knowledge_retrieval") {
           // Extract query parameters for retrieval
           const query = functionParams?.query;
           const numResults = functionParams?.numResults || 5;
@@ -280,7 +275,7 @@ exports.handler = async (event, context) => {
               result: {
                 tool_results: [
                   {
-                    tool_name: "vector_db",
+                    tool_name: "knowledge_retrieval",
                     tool_result: { documents }
                   }
                 ]
@@ -350,7 +345,7 @@ exports.handler = async (event, context) => {
             id,
             method: "tools/executeFunction",
             params: {
-              name: "vector_db",
+              name: "knowledge_retrieval",
               parameters: {
                 query: params.query
               }
