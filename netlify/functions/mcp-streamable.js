@@ -69,6 +69,8 @@ exports.handler = async (event, context) => {
                 "prompts/list",
                 "retrieval/query",
                 "connection/handshake",
+                "connection/initialize",
+                "initialize",
                 "connection/heartbeat"
               ]
             }
@@ -77,7 +79,7 @@ exports.handler = async (event, context) => {
       }
 
       // Connection handshake
-      if (method === "connection/handshake" || method === "connection/initialize") {
+      if (method === "connection/handshake" || method === "connection/initialize" || method === "initialize") {
         return {
           statusCode: 200,
           headers,
@@ -283,6 +285,8 @@ exports.handler = async (event, context) => {
                 "prompts/list",
                 "retrieval/query",
                 "connection/handshake",
+                "connection/initialize",
+                "initialize",
                 "connection/heartbeat"
               ]
             }
@@ -327,6 +331,8 @@ exports.handler = async (event, context) => {
           "prompts/list",
           "retrieval/query",
           "connection/handshake",
+          "connection/initialize",
+          "initialize",
           "connection/heartbeat"
         ],
         usage: "POST JSON-RPC 2.0 formatted requests to this endpoint"
