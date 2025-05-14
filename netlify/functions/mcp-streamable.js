@@ -112,7 +112,10 @@ exports.handler = async (event, context) => {
               protocolVersion: "2024-11-05",
               capabilities: {
                 retrieval: true,
-                tools: true,
+                tools: {
+                  available: true,
+                  executionMethods: ["tools/executeFunction"]
+                },
                 function_calling: true
               },
               serverInfo: {
