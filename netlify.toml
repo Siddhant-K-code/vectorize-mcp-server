@@ -3,13 +3,23 @@
   functions = "netlify/functions"
   publish = "public"
 
+# Add this new redirect for /api/mcp
+[[redirects]]
+  from = "/api/mcp"
+  to = "/.netlify/functions/mcp"
+  status = 200
+
 [[redirects]]
   from = "/mcp"
   to = "/.netlify/functions/mcp"
   status = 200
 
-# Redirect /sse to /mcp for backward compatibility
 [[redirects]]
   from = "/sse"
   to = "/.netlify/functions/mcp"
+  status = 200
+
+[[redirects]]
+  from = "/api/sse"
+  to = "/.netlify/functions/sse"
   status = 200
