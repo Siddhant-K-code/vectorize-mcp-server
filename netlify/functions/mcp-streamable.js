@@ -68,6 +68,7 @@ exports.handler = async (event, context) => {
                 "tools/list",
                 "prompts/list",
                 "retrieval/query",
+                "tools/executeFunction",
                 "connection/handshake",
                 "connection/initialize",
                 "initialize",
@@ -108,9 +109,12 @@ exports.handler = async (event, context) => {
             result: {
               protocolVersion: "2024-11-05",
               capabilities: {
-                retrieval: true,
+                retrieval: {
+                  available: true
+                },
                 tools: {
-                  executionMethods: ["retrieval/query"]
+                  executionMethods: ["retrieval/query"],
+                  available: true
                 }
               },
               serverInfo: {
@@ -150,6 +154,10 @@ exports.handler = async (event, context) => {
                   description: "Retrieves information from the Gitpod knowledge base",
                   enabled: true,
                   isSystemTool: true,
+                  canRunInBackground: false,
+                  type: "function",
+                  returnDirect: false,
+                  toolCategory: "retrieval",
                   functions: [
                     {
                       name: "query",
@@ -191,8 +199,8 @@ exports.handler = async (event, context) => {
         };
       }
 
-      // Retrieval query
-      if (method === "retrieval/query") {
+      // Retrieval query - handle both method patterns
+      if (method === "retrieval/query" || method === "tools/executeFunction") {
         // Extract query parameters
         const query = params?.query;
         const numResults = params?.numResults || 5;
@@ -315,6 +323,7 @@ exports.handler = async (event, context) => {
                 "tools/list",
                 "prompts/list",
                 "retrieval/query",
+                "tools/executeFunction",
                 "connection/handshake",
                 "connection/initialize",
                 "initialize",
@@ -361,6 +370,7 @@ exports.handler = async (event, context) => {
           "tools/list",
           "prompts/list",
           "retrieval/query",
+          "tools/executeFunction",
           "connection/handshake",
           "connection/initialize",
           "initialize",
