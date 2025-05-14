@@ -6,7 +6,8 @@ exports.handler = async (event, context) => {
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Content-Type": "application/json"
   };
 
   // Handle OPTIONS requests (CORS preflight)
@@ -27,11 +28,42 @@ exports.handler = async (event, context) => {
 
       const { jsonrpc, method, params, id } = request;
 
-      // Handle different methods
+      // Handle standard JSON-RPC methods
+      if (method === "rpc.discover") {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              name: "Gitpod Knowledge Base",
+              version: "1.0.0",
+              transports: ["streamable-http"],
+              methods: ["tools/list", "prompts/list", "retrieval/query", "connection/heartbeat"]
+            }
+          })
+        };
+      }
+
+      // Handle connection/heartbeat
+      if (method === "connection/heartbeat") {
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            result: { status: "connected" }
+          })
+        };
+      }
+
+      // Handle tools/list
       if (method === "tools/list") {
         return {
           statusCode: 200,
-          headers: { ...headers, "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             jsonrpc: "2.0",
             id,
@@ -68,10 +100,11 @@ exports.handler = async (event, context) => {
         };
       }
 
+      // Handle prompts/list
       if (method === "prompts/list") {
         return {
           statusCode: 200,
-          headers: { ...headers, "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             jsonrpc: "2.0",
             id,
@@ -80,14 +113,16 @@ exports.handler = async (event, context) => {
         };
       }
 
+      // Handle method: retrieval/query
       if (method === "retrieval/query") {
+        // Extract parameters
         const query = params?.query;
         const numResults = params?.numResults || 5;
 
         if (!query) {
           return {
             statusCode: 400,
-            headers: { ...headers, "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify({
               jsonrpc: "2.0",
               id,
@@ -134,7 +169,7 @@ exports.handler = async (event, context) => {
           // Return results
           return {
             statusCode: 200,
-            headers: { ...headers, "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify({
               jsonrpc: "2.0",
               id,
@@ -147,7 +182,7 @@ exports.handler = async (event, context) => {
           console.error("API error:", error.message);
           return {
             statusCode: 500,
-            headers: { ...headers, "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify({
               jsonrpc: "2.0",
               id,
@@ -161,10 +196,13 @@ exports.handler = async (event, context) => {
         }
       }
 
+      // Log unknown methods for debugging
+      console.warn(`Unknown method requested: ${method}`);
+
       // Handle unknown methods
       return {
         statusCode: 404,
-        headers: { ...headers, "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           jsonrpc: "2.0",
           id,
@@ -178,7 +216,7 @@ exports.handler = async (event, context) => {
       console.error("Parse error:", error.message);
       return {
         statusCode: 400,
-        headers: { ...headers, "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: null,
@@ -196,10 +234,11 @@ exports.handler = async (event, context) => {
   if (event.httpMethod === "GET") {
     return {
       statusCode: 200,
-      headers: { ...headers, "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         status: "ok",
-        message: "MCP server is running. Use POST for JSON-RPC requests."
+        message: "MCP server is running. Use POST for JSON-RPC requests.",
+        supportedMethods: ["rpc.discover", "tools/list", "prompts/list", "retrieval/query", "connection/heartbeat"]
       })
     };
   }
@@ -207,7 +246,7 @@ exports.handler = async (event, context) => {
   // Reject other methods
   return {
     statusCode: 405,
-    headers: { ...headers, "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       error: "Method not allowed"
     })

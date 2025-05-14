@@ -25,7 +25,6 @@
   to = "/.netlify/functions/sse"
   status = 200
 
-# Main MCP endpoint
 [[redirects]]
   from = "/v1"
   to = "/.netlify/functions/mcp-streamable"
