@@ -31,6 +31,37 @@
   status = 200
   force = true
 
+# MCP method endpoints
+[[redirects]]
+  from = "/connection/*"
+  to = "/.netlify/functions/mcp-streamable"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/tools/*"
+  to = "/.netlify/functions/mcp-streamable"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/retrieval/*"
+  to = "/.netlify/functions/mcp-streamable"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/prompts/*"
+  to = "/.netlify/functions/mcp-streamable"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/rpc/*"
+  to = "/.netlify/functions/mcp-streamable"
+  status = 200
+  force = true
+
 # Handle function errors
 [build.processing.html]
   pretty_urls = true
