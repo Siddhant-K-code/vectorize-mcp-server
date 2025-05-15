@@ -120,7 +120,8 @@ exports.handler = async (event, context) => {
               protocolVersion: "2024-11-05",
               capabilities: {
                 tools: {
-                  available: true
+                  available: true,
+                  tags: {"category:retrieval": true}
                 }
               },
               serverInfo: {
@@ -154,13 +155,13 @@ exports.handler = async (event, context) => {
             tools: [
               {
                 name: "knowledge_retrieval",
-                description: "Search the knowledge base for information",
+                description: "Search the Gitpod knowledge base for developer documentation, features, and how-to guides. Use for questions about Gitpod workspaces, configurations, and development environments.",
                 inputSchema: {
                   type: "object",
                   properties: {
                     query: {
-                      type: "string",
-                      description: "The search query"
+                    type: "string",
+                    description: "The user's question or search terms related to Gitpod. Extract the main topic from the user's message."
                     }
                   },
                   required: ["query"]
