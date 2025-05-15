@@ -1,189 +1,85 @@
 # Vectorize MCP Server
 
-A Model Context Protocol (MCP) server implementation that integrates with [Vectorize](https://vectorize.io/) for advanced Vector retrieval and text extraction.
+This project implements a Model Context Protocol (MCP) server for Vectorize RAG pipelines, making them accessible through Claude Desktop.
 
-<a href="https://glama.ai/mcp/servers/pxwbgk0kzr">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/pxwbgk0kzr/badge" alt="Vectorize MCP server" />
-</a>
+## Deployment
 
+This server is deployed on Netlify. It requires the following environment variables:
 
-## Installation
+- `VECTORIZE_SECRETS_ENDPOINT` - Vectorize API endpoint URL
+- `VECTORIZE_ORG_ID` - Organization ID for Vectorize
+- `VECTORIZE_PIPELINE_ID` - Pipeline ID for the RAG system
+- `VECTORIZE_TOKEN` - Authentication token for Vectorize API
 
-### Running with npx
+## Claude Desktop Configuration
 
-```bash
-export VECTORIZE_ORG_ID=YOUR_ORG_ID
-export VECTORIZE_TOKEN=YOUR_TOKEN
-export VECTORIZE_PIPELINE_ID=YOUR_PIPELINE_ID
+There are two transport options available for connecting to this MCP server:
 
-npx -y @vectorize-io/vectorize-mcp-server@latest
-```
-
-### VS Code Installation
-
-For one-click installation, click one of the install buttons below:
-
-[![Install with NPX in VS Code](https://img.shields.io/badge/VS_Code-NPM-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=vectorize&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40vectorize-io%2Fvectorize-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22VECTORIZE_ORG_ID%22%3A%22%24%7Binput%3Aorg_id%7D%22%2C%22VECTORIZE_TOKEN%22%3A%22%24%7Binput%3Atoken%7D%22%2C%22VECTORIZE_PIPELINE_ID%22%3A%22%24%7Binput%3Apipeline_id%7D%22%7D%7D&inputs=%5B%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22org_id%22%2C%22description%22%3A%22Vectorize+Organization+ID%22%7D%2C%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22token%22%2C%22description%22%3A%22Vectorize+Token%22%2C%22password%22%3Atrue%7D%2C%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22pipeline_id%22%2C%22description%22%3A%22Vectorize+Pipeline+ID%22%7D%5D) [![Install with NPX in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-NPM-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=vectorize&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40vectorize-io%2Fvectorize-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22VECTORIZE_ORG_ID%22%3A%22%24%7Binput%3Aorg_id%7D%22%2C%22VECTORIZE_TOKEN%22%3A%22%24%7Binput%3Atoken%7D%22%2C%22VECTORIZE_PIPELINE_ID%22%3A%22%24%7Binput%3Apipeline_id%7D%22%7D%7D&inputs=%5B%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22org_id%22%2C%22description%22%3A%22Vectorize+Organization+ID%22%7D%2C%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22token%22%2C%22description%22%3A%22Vectorize+Token%22%2C%22password%22%3Atrue%7D%2C%7B%22type%22%3A%22promptString%22%2C%22id%22%3A%22pipeline_id%22%2C%22description%22%3A%22Vectorize+Pipeline+ID%22%7D%5D&quality=insiders)
-
-### Manual Installation
-
-For the quickest installation, use the one-click install buttons at the top of this section.
-
-To install manually, add the following JSON block to your User Settings (JSON) file in VS Code. You can do this by pressing `Ctrl + Shift + P` and typing `Preferences: Open User Settings (JSON)`.
-
-```json
-{
-  "mcp": {
-    "inputs": [
-      {
-        "type": "promptString",
-        "id": "org_id",
-        "description": "Vectorize Organization ID"
-      },
-      {
-        "type": "promptString",
-        "id": "token",
-        "description": "Vectorize Token",
-        "password": true
-      },
-      {
-        "type": "promptString",
-        "id": "pipeline_id",
-        "description": "Vectorize Pipeline ID"
-      }
-    ],
-    "servers": {
-      "vectorize": {
-        "command": "npx",
-        "args": ["-y", "@vectorize-io/vectorize-mcp-server@latest"],
-        "env": {
-          "VECTORIZE_ORG_ID": "${input:org_id}",
-          "VECTORIZE_TOKEN": "${input:token}",
-          "VECTORIZE_PIPELINE_ID": "${input:pipeline_id}"
-        }
-      }
-    }
-  }
-}
-```
-
-Optionally, you can add the following to a file called `.vscode/mcp.json` in your workspace to share the configuration with others:
-
-```json
-{
-  "inputs": [
-    {
-      "type": "promptString",
-      "id": "org_id",
-      "description": "Vectorize Organization ID"
-    },
-    {
-      "type": "promptString",
-      "id": "token",
-      "description": "Vectorize Token",
-      "password": true
-    },
-    {
-      "type": "promptString",
-      "id": "pipeline_id",
-      "description": "Vectorize Pipeline ID"
-    }
-  ],
-  "servers": {
-    "vectorize": {
-      "command": "npx",
-      "args": ["-y", "@vectorize-io/vectorize-mcp-server@latest"],
-      "env": {
-        "VECTORIZE_ORG_ID": "${input:org_id}",
-        "VECTORIZE_TOKEN": "${input:token}",
-        "VECTORIZE_PIPELINE_ID": "${input:pipeline_id}"
-      }
-    }
-  }
-}
-```
-
-## Configuration on Claude/Windsurf/Cursor/Cline
+### Option 1: Streamable HTTP Transport (Recommended)
 
 ```json
 {
   "mcpServers": {
-    "vectorize": {
+    "gitpod-kb": {
       "command": "npx",
-      "args": ["-y", "@vectorize-io/vectorize-mcp-server@latest"],
-      "env": {
-        "VECTORIZE_ORG_ID": "your-org-id",
-        "VECTORIZE_TOKEN": "your-token",
-        "VECTORIZE_PIPELINE_ID": "your-pipeline-id"
-      }
+      "args": [
+        "mcp-remote",
+        "--transport=streamable-http",
+        "https://kumquat-vectorize-mcp.netlify.app/v1"
+      ]
     }
   }
 }
 ```
 
-## Tools
-
-### Retrieve documents
-
-Perform vector search and retrieve documents (see official [API](https://docs.vectorize.io/api/api-pipelines/api-retrieval)):
+### Option 2: SSE Transport (Server-Sent Events)
 
 ```json
 {
-  "name": "retrieve",
-  "arguments": {
-    "question": "Financial health of the company",
-    "k": 5
+  "mcpServers": {
+    "gitpod-kb": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "--transport=sse",
+        "https://kumquat-vectorize-mcp.netlify.app/v1/sse"
+      ]
+    }
   }
 }
 ```
 
-### Text extraction and chunking (Any file to Markdown)
+## Troubleshooting
 
-Extract text from a document and chunk it into Markdown format (see official [API](https://docs.vectorize.io/api/api-extraction)):
+### SSE Content Type Error
 
-```json
-{
-  "name": "extract",
-  "arguments": {
-    "base64document": "base64-encoded-document",
-    "contentType": "application/pdf"
-  }
-}
+If you see an error like this:
+
+```
+Error: SSE error: Invalid content type, expected "text/event-stream". Check that the URL is correct and points to a valid MCP SSE endpoint. The server must respond with Content-Type: text/event-stream header.
 ```
 
-### Deep Research
+Ensure you're using:
+1. The correct transport type that matches your endpoint (streamable-http or sse)
+2. The correct endpoint URL for the selected transport:
+   - For SSE: `https://kumquat-vectorize-mcp.netlify.app/v1/sse` or `https://kumquat-vectorize-mcp.netlify.app/sse`
+   - For streamable-http: `https://kumquat-vectorize-mcp.netlify.app/v1` or any other endpoint
 
-Generate a Private Deep Research from your pipeline (see official [API](https://docs.vectorize.io/api/api-pipelines/api-deep-research)):
+### Health Check
 
-```json
-{
-  "name": "deep-research",
-  "arguments": {
-    "query": "Generate a financial status report about the company",
-    "webSearch": true
-  }
-}
-```
+You can verify the server is running correctly by visiting the health check endpoint:
+`https://kumquat-vectorize-mcp.netlify.app/health`
 
-## Development
+## Supported Methods
 
-```bash
-npm install
-npm run dev
-```
+This MCP server implements the following methods:
 
-### Release
-Change the package.json version and then:
-```bash
-git commit -am "x.y.z"
-git tag x.y.z
-git push origin
-git push origin --tags
-```
-
-### Contributing
-
-1. Fork the repository
-2. Create your feature branch
-3. Submit a pull request
-
+- `rpc.discover` - Returns information about the server
+- `tools/list` - Lists available tools
+- `prompts/list` - Lists available prompts (currently none)
+- `retrieval/query` - Legacy method for querying the Vectorize pipeline
+- `tools/executeFunction` - Executes a function (primarily knowledge_retrieval)
+- `connection/handshake` - Establishes a connection
+- `connection/initialize` - Initializes a connection
+- `initialize` - Claude Desktop specific initialization
+- `connection/heartbeat` - Maintains connection

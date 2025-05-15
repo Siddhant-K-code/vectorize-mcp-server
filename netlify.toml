@@ -10,10 +10,17 @@
   status = 200
   force = true
 
-# Support for legacy SSE endpoint
+# SSE-specific endpoint
+[[redirects]]
+  from = "/v1/sse"
+  to = "/.netlify/functions/mcp-sse"
+  status = 200
+  force = true
+
+# Support for SSE endpoint
 [[redirects]]
   from = "/sse"
-  to = "/.netlify/functions/mcp-streamable"
+  to = "/.netlify/functions/mcp-sse"
   status = 200
   force = true
 
