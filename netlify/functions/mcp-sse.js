@@ -117,7 +117,9 @@ exports.handler = async (event, context) => {
             result: {
               protocolVersion: "2024-11-05",
               capabilities: {
-                tools: true
+                tools: {
+                  available: true
+                }
               },
               serverInfo: {
                 name: "Gitpod Knowledge Base",
