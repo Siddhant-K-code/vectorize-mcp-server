@@ -26,6 +26,16 @@ The server supports two transports:
 There are specific redirects in `netlify.toml` for each transport method to ensure
 proper Content-Type headers are set.
 
+## Troubleshooting
+
+If you encounter "upstream connect error" or connection termination issues:
+
+1. Check that all environment variables are properly set in Netlify
+2. Verify that the Vectorize API is responsive (use the test script)
+3. Try switching to the streamable-http transport if SSE is problematic
+4. Check Netlify function logs for detailed error information
+5. Remember that netlify functions have a 10-second timeout by default
+
 ## Environment Variables
 
 - `VECTORIZE_SECRETS_ENDPOINT` - Vectorize API endpoint URL

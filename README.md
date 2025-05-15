@@ -51,7 +51,7 @@ There are two transport options available for connecting to this MCP server:
 
 ## Troubleshooting
 
-### SSE Content Type Error
+### Content Type Errors
 
 If you see an error like this:
 
@@ -64,6 +64,41 @@ Ensure you're using:
 2. The correct endpoint URL for the selected transport:
    - For SSE: `https://kumquat-vectorize-mcp.netlify.app/v1/sse` or `https://kumquat-vectorize-mcp.netlify.app/sse`
    - For streamable-http: `https://kumquat-vectorize-mcp.netlify.app/v1` or any other endpoint
+
+### Connection Errors
+
+If you see an error like this:
+
+```
+upstream connect error or disconnect/reset before headers. reset reason: connection termination
+```
+
+Try the following:
+
+1. **Switch to HTTP Transport**: Try using the streamable-http transport instead of SSE
+   ```json
+   {
+     "mcpServers": {
+       "gitpod-kb": {
+         "command": "npx",
+         "args": [
+           "mcp-remote",
+           "--transport=streamable-http",
+           "https://deploy-preview-4--kumquat-vectorize-mcp.netlify.app/v1"
+         ]
+       }
+     }
+   }
+   ```
+
+2. **Check Environment Variables**: Make sure all required environment variables are set in Netlify
+
+3. **Verify API Access**: Use the test script to verify Vectorize API connectivity:
+   ```
+   ./test-mcp.sh https://deploy-preview-4--kumquat-vectorize-mcp.netlify.app
+   ```
+
+4. **Review Netlify Logs**: Check the Netlify function logs for detailed error information
 
 ### Health Check
 

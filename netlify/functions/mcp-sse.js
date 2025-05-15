@@ -9,7 +9,8 @@ exports.handler = async (event, context) => {
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PATCH",
     "Content-Type": "text/event-stream", // This is the critical header for SSE
     "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
-    "Connection": "keep-alive"
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no" // Prevent Nginx buffering
   };
 
   // Log all incoming requests for debugging
@@ -229,6 +230,24 @@ exports.handler = async (event, context) => {
             const VECTORIZE_ORG_ID = process.env.VECTORIZE_ORG_ID || '';
             const VECTORIZE_PIPELINE_ID = process.env.VECTORIZE_PIPELINE_ID || '';
             const VECTORIZE_TOKEN = process.env.VECTORIZE_TOKEN || '';
+            
+            // Validate environment variables
+            if (!VECTORIZE_ORG_ID || !VECTORIZE_PIPELINE_ID || !VECTORIZE_TOKEN) {
+              console.error("Missing required environment variables");
+              return {
+                statusCode: 200,
+                headers,
+                body: formatSSEMessage({
+                  jsonrpc: "2.0",
+                  id,
+                  error: {
+                    code: -32603,
+                    message: "Server configuration error",
+                    data: "Missing required environment variables. Please check server configuration."
+                  }
+                })
+              };
+            }
   
             // Log environment variable status (without exposing values)
             console.log(`Environment variables present: ENDPOINT=${!!VECTORIZE_SECRETS_ENDPOINT}, ORG_ID=${!!VECTORIZE_ORG_ID}, PIPELINE_ID=${!!VECTORIZE_PIPELINE_ID}, TOKEN=${!!VECTORIZE_TOKEN}`);
@@ -242,53 +261,81 @@ exports.handler = async (event, context) => {
             console.log(`Querying Vectorize API at ${apiEndpoint} with query: "${query.substring(0, 50)}..."`);
   
             // Call Vectorize API
-            const response = await axios({
-              method: 'post',
-              url: apiEndpoint,
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${VECTORIZE_TOKEN}`
-              },
-              data: {
-                question: query,
-                numResults
-              }
-            });
+            console.log(`Making request to Vectorize API at ${apiEndpoint}`);
+            try {
+              const response = await axios({
+                method: 'post',
+                url: apiEndpoint,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${VECTORIZE_TOKEN}`
+                },
+                data: {
+                  question: query,
+                  numResults
+                },
+                timeout: 25000 // 25 second timeout to prevent hanging
+              });
   
-            // Log success
-            console.log(`Received ${response.data.documents?.length || 0} documents from Vectorize API`);
-  
-            // Return formatted results
-            // Log the response from Vectorize
-            console.log(`DEBUG VECTORIZE RESPONSE: ${JSON.stringify(response.data)}`);
-            
-            const documents = (response.data.documents || []).map(doc => ({
+              // Log success
+              console.log(`Received ${response.data.documents?.length || 0} documents from Vectorize API`);
+    
+              // Return formatted results
+              // Log the response from Vectorize
+              console.log(`DEBUG VECTORIZE RESPONSE: ${JSON.stringify(response.data)}`);
+              
+              const documents = (response.data.documents || []).map(doc => ({
               text: doc.text || doc.content || doc.pageContent || '',
               metadata: doc.metadata || {},
               score: doc.score || doc.similarity || 0
             }));
             
-            const toolResult = {
-              jsonrpc: "2.0",
-              id,
-              result: {
-                content: [
-                  { 
-                    type: "text", 
-                    text: JSON.stringify({ documents })
-                  }
-                ],
-                isError: false
+              const toolResult = {
+                jsonrpc: "2.0",
+                id,
+                result: {
+                  content: [
+                    { 
+                      type: "text", 
+                      text: JSON.stringify({ documents })
+                    }
+                  ],
+                  isError: false
+                }
+              };
+              
+              console.log(`DEBUG TOOL RESULT: ${JSON.stringify(toolResult)}`);
+              
+              return {
+                statusCode: 200,
+                headers,
+                body: formatSSEMessage(toolResult)
+              };
+            } catch (axiosError) {
+              console.error("Axios request failed:", axiosError.message);
+              if (axiosError.response) {
+                console.error("Response status:", axiosError.response.status);
+                console.error("Response data:", JSON.stringify(axiosError.response.data));
               }
-            };
-            
-            console.log(`DEBUG TOOL RESULT: ${JSON.stringify(toolResult)}`);
-            
-            return {
-              statusCode: 200,
-              headers,
-              body: formatSSEMessage(toolResult)
-            };
+              
+              return {
+                statusCode: 200,
+                headers,
+                body: formatSSEMessage({
+                  jsonrpc: "2.0",
+                  id,
+                  error: {
+                    code: -32603,
+                    message: "Vectorize API request failed",
+                    data: {
+                      message: axiosError.message,
+                      status: axiosError.response?.status || "No response",
+                      data: axiosError.response?.data || "No response data"
+                    }
+                  }
+                })
+              };
+            }
           } catch (error) {
             // Log detailed error
             console.error("Vectorize API error:", error.message);
