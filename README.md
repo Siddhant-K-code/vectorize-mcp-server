@@ -41,8 +41,8 @@ There are two transport options available for connecting to this MCP server:
       "command": "npx",
       "args": [
         "mcp-remote",
-        "--transport=sse",
-        "https://kumquat-vectorize-mcp.netlify.app/v1/sse"
+        "https://kumquat-vectorize-mcp.netlify.app/v1/sse",
+        "--transport=sse"
       ]
     }
   }

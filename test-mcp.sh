@@ -48,8 +48,8 @@ echo "{
       \"command\": \"npx\",
       \"args\": [
         \"mcp-remote\",
-        \"--transport=sse\",
-        \"$BASE_URL/v1/sse\"
+        \"$BASE_URL/v1/sse\",
+        \"--transport=sse\"
       ]
     }
   }

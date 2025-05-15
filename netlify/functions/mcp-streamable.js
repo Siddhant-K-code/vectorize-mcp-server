@@ -111,14 +111,7 @@ exports.handler = async (event, context) => {
             result: {
               protocolVersion: "2024-11-05",
               capabilities: {
-                tools: {
-                  available: true,
-                  manifest: {
-                    name: "gitpod_kb",
-                    version: "1.0.0"
-                  },
-                  tags: {"category:retrieval": true}
-                }
+                tools: true
               },
               serverInfo: {
                 name: "Gitpod Knowledge Base",
@@ -150,20 +143,17 @@ exports.handler = async (event, context) => {
           result: {
             tools: [
               {
-                type: "function",
-                function: {
-                  name: "knowledge_retrieval",
-                  description: "Search the knowledge base for information",
-                  parameters: {
-                    type: "object",
-                    properties: {
-                      query: {
-                        type: "string",
-                        description: "The search query"
-                      }
-                    },
-                    required: ["query"]
-                  }
+                name: "knowledge_retrieval",
+                description: "Search the knowledge base for information",
+                inputSchema: {
+                  type: "object",
+                  properties: {
+                    query: {
+                      type: "string",
+                      description: "The search query"
+                    }
+                  },
+                  required: ["query"]
                 }
               }
             ]
@@ -196,7 +186,8 @@ exports.handler = async (event, context) => {
       if (method === "tools/executeFunction") {
         // Extract function name and parameters
         const functionName = params?.name;
-        const functionParams = params?.parameters || {};
+        // Support both Claude Desktop formats
+        const functionParams = params?.parameters || params?.arguments || {};
         
         console.log(`DEBUG EXECUTE: ${functionName} with params: ${JSON.stringify(functionParams)}`);
         
@@ -273,12 +264,13 @@ exports.handler = async (event, context) => {
               jsonrpc: "2.0",
               id,
               result: {
-                tool_results: [
-                  {
-                    tool_name: "knowledge_retrieval",
-                    tool_result: { documents }
+                content: [
+                  { 
+                    type: "text", 
+                    text: JSON.stringify({ documents })
                   }
-                ]
+                ],
+                isError: false
               }
             };
             
