@@ -15,6 +15,7 @@
   "scripts": {
     "build": "tsc && node -e \"require('fs').chmodSync('dist/index.js', '755')\"",
     "dev": "npm run build && npx @modelcontextprotocol/inspector node dist/index.js",
+    "dev:sse": "npm run build && npx @modelcontextprotocol/inspector --transport=sse node dist/index.js",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write .",

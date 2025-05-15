@@ -105,7 +105,11 @@ const vectorizeApi = new Configuration({
 });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [RETRIEVAL_TOOL, EXTRACTION_TOOL, DEEP_RESEARCH_TOOL],
+  tools: [
+    RETRIEVAL_TOOL,
+    EXTRACTION_TOOL,
+    DEEP_RESEARCH_TOOL,
+  ]
 }));
 
 async function performRetrieval(

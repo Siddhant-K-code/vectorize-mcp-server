@@ -1,14 +1,16 @@
-// netlify/functions/mcp-streamable.js
+// netlify/functions/mcp-sse.js
 const axios = require('axios').default;
 
 exports.handler = async (event, context) => {
-  // Set CORS headers for all responses
+  // Set SSE headers for all responses
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PATCH",
-    "Content-Type": "application/json",
-    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+    "Content-Type": "text/event-stream", // This is the critical header for SSE
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no" // Prevent Nginx buffering
   };
 
   // Log all incoming requests for debugging
@@ -29,12 +31,17 @@ exports.handler = async (event, context) => {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type, Authorization",
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PATCH",
-        "Content-Type": "application/json",
+        "Content-Type": "text/event-stream",
         "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
       },
       body: ""
     };
   }
+
+  // Format message for SSE
+  const formatSSEMessage = (data, event = "message") => {
+    return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  };
 
   // Handle JSON-RPC requests via POST
   if (event.httpMethod === "POST" || event.httpMethod === "PATCH") {
@@ -57,13 +64,13 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify({
+          body: formatSSEMessage({
             jsonrpc: "2.0",
             id,
             result: {
               name: "Gitpod Knowledge Base",
               version: "1.0.0",
-              transports: ["streamable-http"],
+              transports: ["sse"],
               methods: [
                 "rpc.discover",
                 "tools/list",
@@ -86,7 +93,7 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify({
+          body: formatSSEMessage({
             jsonrpc: "2.0",
             id,
             result: {
@@ -106,7 +113,7 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify({
+          body: formatSSEMessage({
             jsonrpc: "2.0",
             id,
             result: {
@@ -131,7 +138,7 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify({
+          body: formatSSEMessage({
             jsonrpc: "2.0",
             id,
             result: { status: "connected" }
@@ -169,7 +176,7 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify(response)
+          body: formatSSEMessage(response)
         };
       }
 
@@ -178,7 +185,7 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 200,
           headers,
-          body: JSON.stringify({
+          body: formatSSEMessage({
             jsonrpc: "2.0",
             id,
             result: { prompts: [] }
@@ -188,7 +195,7 @@ exports.handler = async (event, context) => {
 
       // Handle tool execution
       if (method === "tools/executeFunction" || method === "tools/call") {
-        // Extract function name and parameters
+        // Extract function name and parameters 
         const functionName = params?.name;
         // Support both Claude Desktop formats
         const functionParams = params?.parameters || params?.arguments || {};
@@ -207,7 +214,7 @@ exports.handler = async (event, context) => {
             return {
               statusCode: 200, // Use 200 even for errors in JSON-RPC
               headers,
-              body: JSON.stringify({
+              body: formatSSEMessage({
                 jsonrpc: "2.0",
                 id,
                 error: {
@@ -225,6 +232,24 @@ exports.handler = async (event, context) => {
             const VECTORIZE_ORG_ID = process.env.VECTORIZE_ORG_ID || '';
             const VECTORIZE_PIPELINE_ID = process.env.VECTORIZE_PIPELINE_ID || '';
             const VECTORIZE_TOKEN = process.env.VECTORIZE_TOKEN || '';
+            
+            // Validate environment variables
+            if (!VECTORIZE_ORG_ID || !VECTORIZE_PIPELINE_ID || !VECTORIZE_TOKEN) {
+              console.error("Missing required environment variables");
+              return {
+                statusCode: 200,
+                headers,
+                body: formatSSEMessage({
+                  jsonrpc: "2.0",
+                  id,
+                  error: {
+                    code: -32603,
+                    message: "Server configuration error",
+                    data: "Missing required environment variables. Please check server configuration."
+                  }
+                })
+              };
+            }
   
             // Log environment variable status (without exposing values)
             console.log(`Environment variables present: ENDPOINT=${!!VECTORIZE_SECRETS_ENDPOINT}, ORG_ID=${!!VECTORIZE_ORG_ID}, PIPELINE_ID=${!!VECTORIZE_PIPELINE_ID}, TOKEN=${!!VECTORIZE_TOKEN}`);
@@ -238,53 +263,81 @@ exports.handler = async (event, context) => {
             console.log(`Querying Vectorize API at ${apiEndpoint} with query: "${query.substring(0, 50)}..."`);
   
             // Call Vectorize API
-            const response = await axios({
-              method: 'post',
-              url: apiEndpoint,
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${VECTORIZE_TOKEN}`
-              },
-              data: {
-                question: query,
-                numResults
-              }
-            });
+            console.log(`Making request to Vectorize API at ${apiEndpoint}`);
+            try {
+              const response = await axios({
+                method: 'post',
+                url: apiEndpoint,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${VECTORIZE_TOKEN}`
+                },
+                data: {
+                  question: query,
+                  numResults
+                },
+                timeout: 25000 // 25 second timeout to prevent hanging
+              });
   
-            // Log success
-            console.log(`Received ${response.data.documents?.length || 0} documents from Vectorize API`);
-  
-            // Return formatted results
-            // Log the response from Vectorize
-            console.log(`DEBUG VECTORIZE RESPONSE: ${JSON.stringify(response.data)}`);
-            
-            const documents = (response.data.documents || []).map(doc => ({
+              // Log success
+              console.log(`Received ${response.data.documents?.length || 0} documents from Vectorize API`);
+    
+              // Return formatted results
+              // Log the response from Vectorize
+              console.log(`DEBUG VECTORIZE RESPONSE: ${JSON.stringify(response.data)}`);
+              
+              const documents = (response.data.documents || []).map(doc => ({
               text: doc.text || doc.content || doc.pageContent || '',
               metadata: doc.metadata || {},
               score: doc.score || doc.similarity || 0
             }));
             
-            const toolResult = {
-              jsonrpc: "2.0",
-              id,
-              result: {
-                content: [
-                  { 
-                    type: "text", 
-                    text: JSON.stringify({ documents })
-                  }
-                ],
-                isError: false
+              const toolResult = {
+                jsonrpc: "2.0",
+                id,
+                result: {
+                  content: [
+                    { 
+                      type: "text", 
+                      text: JSON.stringify({ documents })
+                    }
+                  ],
+                  isError: false
+                }
+              };
+              
+              console.log(`DEBUG TOOL RESULT: ${JSON.stringify(toolResult)}`);
+              
+              return {
+                statusCode: 200,
+                headers,
+                body: formatSSEMessage(toolResult)
+              };
+            } catch (axiosError) {
+              console.error("Axios request failed:", axiosError.message);
+              if (axiosError.response) {
+                console.error("Response status:", axiosError.response.status);
+                console.error("Response data:", JSON.stringify(axiosError.response.data));
               }
-            };
-            
-            console.log(`DEBUG TOOL RESULT: ${JSON.stringify(toolResult)}`);
-            
-            return {
-              statusCode: 200,
-              headers,
-              body: JSON.stringify(toolResult)
-            };
+              
+              return {
+                statusCode: 200,
+                headers,
+                body: formatSSEMessage({
+                  jsonrpc: "2.0",
+                  id,
+                  error: {
+                    code: -32603,
+                    message: "Vectorize API request failed",
+                    data: {
+                      message: axiosError.message,
+                      status: axiosError.response?.status || "No response",
+                      data: axiosError.response?.data || "No response data"
+                    }
+                  }
+                })
+              };
+            }
           } catch (error) {
             // Log detailed error
             console.error("Vectorize API error:", error.message);
@@ -297,7 +350,7 @@ exports.handler = async (event, context) => {
             return {
               statusCode: 200, // Use 200 for JSON-RPC errors
               headers,
-              body: JSON.stringify({
+              body: formatSSEMessage({
                 jsonrpc: "2.0",
                 id,
                 error: {
@@ -318,7 +371,7 @@ exports.handler = async (event, context) => {
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify({
+            body: formatSSEMessage({
               jsonrpc: "2.0",
               id,
               error: {
@@ -357,7 +410,7 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 200, // Use 200 for JSON-RPC errors
         headers,
-        body: JSON.stringify({
+        body: formatSSEMessage({
           jsonrpc: "2.0",
           id,
           error: {
@@ -387,7 +440,7 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 200, // Use 200 for JSON-RPC errors
         headers,
-        body: JSON.stringify({
+        body: formatSSEMessage({
           jsonrpc: "2.0",
           id: null,
           error: {
@@ -405,13 +458,13 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({
+      body: formatSSEMessage({
         status: "ok",
         message: "Gitpod Knowledge Base MCP Server is running",
         serverInfo: {
           name: "Gitpod Knowledge Base",
           version: "1.0.0",
-          transport: "streamable-http"
+          transport: "sse"
         },
         supportedMethods: [
           "rpc.discover",
@@ -423,7 +476,7 @@ exports.handler = async (event, context) => {
           "connection/handshake",
           "connection/initialize",
           "initialize",
-          "connection/heartbeat"
+                "connection/heartbeat"
         ],
         usage: "POST JSON-RPC 2.0 formatted requests to this endpoint"
       })
@@ -440,7 +493,7 @@ exports.handler = async (event, context) => {
   return {
     statusCode: 405,
     headers,
-    body: JSON.stringify({
+    body: formatSSEMessage({
       error: "Method not allowed",
       message: "This endpoint only supports GET, POST, PATCH, and OPTIONS requests"
     })
