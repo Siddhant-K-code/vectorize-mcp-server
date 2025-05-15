@@ -77,6 +77,7 @@ exports.handler = async (event, context) => {
                 "prompts/list",
                 "retrieval/query",
                 "tools/executeFunction",
+                "tools/call",
                 "connection/handshake",
                 "connection/initialize",
                 "initialize",
@@ -192,7 +193,7 @@ exports.handler = async (event, context) => {
       }
 
       // Handle tool execution
-      if (method === "tools/executeFunction") {
+      if (method === "tools/executeFunction" || method === "tools/call") {
         // Extract function name and parameters 
         const functionName = params?.name;
         // Support both Claude Desktop formats
@@ -422,6 +423,7 @@ exports.handler = async (event, context) => {
                 "prompts/list",
                 "retrieval/query",
                 "tools/executeFunction",
+                "tools/call",
                 "connection/handshake",
                 "connection/initialize",
                 "initialize",
@@ -469,10 +471,11 @@ exports.handler = async (event, context) => {
           "prompts/list",
           "retrieval/query",
           "tools/executeFunction",
+          "tools/call",
           "connection/handshake",
           "connection/initialize",
           "initialize",
-          "connection/heartbeat"
+                "connection/heartbeat"
         ],
         usage: "POST JSON-RPC 2.0 formatted requests to this endpoint"
       })
