@@ -104,11 +104,13 @@ const vectorizeApi = new Configuration({
   accessToken: VECTORIZE_TOKEN,
 });
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ([
-  RETRIEVAL_TOOL,
-  EXTRACTION_TOOL,
-  DEEP_RESEARCH_TOOL,
-]));
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  tools: [
+    RETRIEVAL_TOOL,
+    EXTRACTION_TOOL,
+    DEEP_RESEARCH_TOOL,
+  ]
+}));
 
 async function performRetrieval(
   orgId: string,
